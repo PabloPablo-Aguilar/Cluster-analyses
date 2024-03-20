@@ -1,0 +1,53 @@
+#ejercicio 4
+#ejemplo de remuestreo en cluster
+library(cluster)
+library(gclus)
+library(pvclust)
+library(sf)
+library(tidyverse)
+#ejecutar funciones.R
+mydata <- scale(USArrests) 
+d <-dist(mydata)
+lista_cl <- list(
+  cl_single = hclust(d, method = 'single'),
+  cl_complete = hclust(d, method = 'complete'),
+  cl_upgma = hclust(d, method = 'average'),
+  cl_ward = hclust(d, method = 'ward.D2')
+)
+
+par(mfrow = c(2,2))
+invisible(map(names(lista_cl), function(x) plot(lista_cl[[x]], main = x, hang = -1)))
+par(mfrow = c(1,1))
+#ver metodo idoneo
+map_df(lista_cl, function(x) {
+  coph_d <- cophenetic(x)
+  corr <- cor(d, coph_d)
+  return(corr)
+})
+#ver numero de cluster idoneos
+anch_sil_upgma <- calcular_anchuras_siluetas(
+  mc_orig = mydata, 
+  distancias = d, 
+  cluster = lista_cl$cl_upgma)
+anch_sil_upgma
+
+#reordenar para que los grupos similares queden cercanos
+u_dend_reord <- reorder.hclust(lista_cl$cl_upgma, d)
+plot(u_dend_reord, hang = -1)
+rect.hclust(
+  tree = u_dend_reord,
+  k = anch_sil_upgma$n_grupos_optimo)
+
+#evaluacion mediante remuestreo por boostrap
+cl_pvclust_upgma <-
+  pvclust(t(mydata),
+          method.hclust = "average",
+          method.dist = "euc",
+          iseed = 91, # Resultado reproducible
+          parallel = TRUE)
+
+# Añadir los valores de p
+plot(cl_pvclust_upgma, hang = -1)
+# Añadir rectángulos a los grupos significativos
+lines(cl_pvclust_upgma)
+pvrect(cl_pvclust_upgma, alpha = 0.91, border = 4)
