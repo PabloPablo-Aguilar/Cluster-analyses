@@ -6,8 +6,8 @@ library(pvclust)
 library(sf)
 library(tidyverse)
 #ejecutar funciones.R
-mydata <- scale(USArrests) 
-d <-dist(mydata)
+
+d <-dist(mydata_3)
 lista_cl <- list(
   cl_single = hclust(d, method = 'single'),
   cl_complete = hclust(d, method = 'complete'),
@@ -26,7 +26,7 @@ map_df(lista_cl, function(x) {
 })
 #ver numero de cluster idoneos
 anch_sil_upgma <- calcular_anchuras_siluetas(
-  mc_orig = mydata, 
+  mc_orig = mydata_3, 
   distancias = d, 
   cluster = lista_cl$cl_upgma)
 anch_sil_upgma
@@ -40,14 +40,40 @@ rect.hclust(
 
 #evaluacion mediante remuestreo por boostrap
 cl_pvclust_upgma <-
-  pvclust(t(mydata),
-          method.hclust = "average",
+  pvclust(t(mydata_3),
+          method.hclust = "ward.D2",
           method.dist = "euc",
+          nboot=999,
           iseed = 91, # Resultado reproducible
-          parallel = TRUE)
+          parallel = TRUE,
+          weight=FALSE)
 
 # Añadir los valores de p
 plot(cl_pvclust_upgma, hang = -1)
 # Añadir rectángulos a los grupos significativos
 lines(cl_pvclust_upgma)
-pvrect(cl_pvclust_upgma, alpha = 0.91, border = 4)
+pvrect(cl_pvclust_upgma, alpha = 0.95, border = 4)
+
+#Ejercicio permutacion 
+# Cut dendrogram to obtain clusters
+clusters <- cutree(lista_cl$cl_upgma, k = 2)
+
+# Calculate silhouette for observed clustering
+sil <- silhouette(clusters, d)
+
+# Extract average silhouette width for observed clustering
+sil_width_observed <- mean(sil[, "sil_width"])
+
+# Permutation testing
+num_permutations <- 999
+sil_width_permuted <- replicate(num_permutations, {
+  clusters_permuted <- sample(clusters)
+  sil_permuted <- silhouette(clusters_permuted, d)
+  mean(sil_permuted[, "sil_width"])
+})
+p_value <- mean(sil_width_permuted >= sil_width_observed/num_permutations)
+if (p_value < 0.05) {
+  print("Clustering is significant")
+} else {
+  print("Clustering is not significant")
+}
